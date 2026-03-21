@@ -1,0 +1,41 @@
+name: UBUNTU-SSH-VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  vps-run:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Setup SSH & User
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
+          # Bikin password buat user 'runner' biar bisa login SSH
+          # Username default github runner adalah 'runner'
+          echo "runner:dika123" | sudo chpasswd
+          sudo service ssh start
+
+      - name: Install & Connect Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          # Login otomatis pake Auth Key dari Secrets
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=vps-dika-ubuntu
+          
+          # Ambil IP-nya biar muncul di log
+          TS_IP=$(tailscale ip -4)
+          echo "IP_VPS=$TS_IP" >> $GITHUB_ENV
+          echo "ALAMAT IP VPS: $TS_IP"
+
+      - name: VPS Is Live!
+        run: |
+          echo "=========================================="
+          echo "   VPS UBUNTU 22.04 READY, CAYANGKU!     "
+          echo "=========================================="
+          echo " IP ADDRESS : ${{ env.IP_VPS }}"
+          echo " USERNAME   : runner"
+          echo " PASSWORD   : dika123"
+          echo " CARA LOGIN : ssh runner@${{ env.IP_VPS }}"
+          echo "=========================================="
+          # Loop selama 6 jam (batas maksimal free tier)
+          sleep 21600
