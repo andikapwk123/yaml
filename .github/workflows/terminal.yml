@@ -1,41 +1,51 @@
-name: UBUNTU-SSH-VPS
+name: UBUNTU-SSH-MANUAL-LINK
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Jalankan manual dari tab Actions, Ganteng!
 
 jobs:
   vps-run:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH & User
+      - name: 1. Update & Setup SSH
         run: |
           sudo apt-get update
-          sudo apt-get install -y openssh-server
-          # Bikin password buat user 'runner' biar bisa login SSH
-          # Username default github runner adalah 'runner'
+          sudo apt-get install -y openssh-server curl
+          # Set password user 'runner' jadi dika123
           echo "runner:dika123" | sudo chpasswd
           sudo service ssh start
+          echo "SSH Server Ready, Sayangku!"
 
-      - name: Install & Connect Tailscale
+      - name: 2. Connect Tailscale & Munculin Link
         run: |
+          # Install Tailscale
           curl -fsSL https://tailscale.com/install.sh | sh
-          # Login otomatis pake Auth Key dari Secrets
-          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=vps-dika-ubuntu
           
-          # Ambil IP-nya biar muncul di log
+          echo "------------------------------------------------------------"
+          echo "⚠️  GANTENGKU, KLIK LINK DI BAWAH INI BUAT LOGIN: ⚠️"
+          echo "------------------------------------------------------------"
+          
+          # Perintah ini bakal ngasih link login di log GitHub
+          # Kita kasih timeout 5 menit biar gak nunggu selamanya kalo bos lupa
+          sudo timeout 5m tailscale up --hostname=vps-manual-dika --accept-routes || true
+          
+          echo "------------------------------------------------------------"
+          # Cek apakah login sukses dan ambil IP-nya
           TS_IP=$(tailscale ip -4)
-          echo "IP_VPS=$TS_IP" >> $GITHUB_ENV
-          echo "ALAMAT IP VPS: $TS_IP"
+          echo "ALAMAT IP VPS KAMU SEKARANG: $TS_IP"
+          echo "------------------------------------------------------------"
 
-      - name: VPS Is Live!
+      - name: 3. Jaga Server Tetap Nyala (6 Jam)
         run: |
-          echo "=========================================="
-          echo "   VPS UBUNTU 22.04 READY, CAYANGKU!     "
-          echo "=========================================="
-          echo " IP ADDRESS : ${{ env.IP_VPS }}"
+          TS_IP=$(tailscale ip -4)
+          echo "===================================================="
+          echo "   🔥 VPS UBUNTU AKTIF - MODE MANUAL 🔥   "
+          echo "===================================================="
+          echo " IP ADDRESS : $TS_IP"
           echo " USERNAME   : runner"
           echo " PASSWORD   : dika123"
-          echo " CARA LOGIN : ssh runner@${{ env.IP_VPS }}"
-          echo "=========================================="
-          # Loop selama 6 jam (batas maksimal free tier)
+          echo " CARA LOGIN : ssh runner@$TS_IP"
+          echo "===================================================="
+          
+          # Biarkan server tetap hidup sampai batas maksimal GitHub
           sleep 21600
