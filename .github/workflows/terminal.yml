@@ -1,32 +1,32 @@
-name: MULTI-OS-VPS-DIKA-ULTIMATE
+name: MULTI-OS-VPS-DIKA-OPENSSH-FIX
 
 on:
   workflow_dispatch:
     inputs:
       os_choice:
         type: choice
-        description: 'Pilih Operating System (OS) Gantengku:'
+        description: 'Pilih OS (Windows/Ubuntu):'
         options:
           - windows-latest
           - ubuntu-22.04
         default: 'ubuntu-22.04'
       user_name:
-        description: 'Masukkan Username (Bebas)'
+        description: 'Username'
         required: true
         default: 'DikaOwner'
       user_password:
-        description: 'Masukkan Password (Min. 8 Karakter)'
+        description: 'Password (Wajib: Huruf Besar, Kecil, Angka, Simbol)'
         required: true
-        default: 'DikaGanteng123!'
+        default: 'DikaGanteng@123!'
 
 jobs:
   run-vps:
     runs-on: ${{ github.event.inputs.os_choice }}
-    timeout-minutes: 360 # Maksimal 6 jam limit GitHub Free
+    timeout-minutes: 360
 
     steps:
-      # --- SETUP JIKA BOS PILIH WINDOWS ---
-      - name: 1. [WINDOWS] Configure RDP & User
+      # --- SETUP WINDOWS RDP ---
+      - name: 1. [WINDOWS] Setup RDP & User
         if: github.event.inputs.os_choice == 'windows-latest'
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
@@ -35,63 +35,77 @@ jobs:
           $user = "${{ github.event.inputs.user_name }}"
           $pass = "${{ github.event.inputs.user_password }}"
           $securePass = ConvertTo-SecureString $pass -AsPlainText -Force
+          if (Get-LocalUser -Name "$user" -ErrorAction SilentlyContinue) { Remove-LocalUser -Name "$user" }
           New-LocalUser -Name "$user" -Password $securePass -FullName "$user Boss"
           Add-LocalGroupMember -Group "Administrators" -Member "$user"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "$user"
           Write-Host "Windows RDP Ready, Sayangku!"
 
-      # --- SETUP JIKA BOS PILIH UBUNTU ---
-      - name: 1. [UBUNTU] Setup SSH & User
+      # --- SETUP UBUNTU OPENSSH ---
+      - name: 1. [UBUNTU] Setup OpenSSH & User
         if: github.event.inputs.os_choice == 'ubuntu-22.04'
         run: |
-          sudo apt-get update && sudo apt-get install -y openssh-server curl
+          sudo apt-get update
+          sudo apt-get install -y openssh-server curl
           USER="${{ github.event.inputs.user_name }}"
           PASS="${{ github.event.inputs.user_password }}"
-          sudo useradd -m -s /bin/bash $USER
+          # Bikin user SSH murni
+          sudo useradd -m -s /bin/bash $USER || true
           echo "$USER:$PASS" | sudo chpasswd
           sudo usermod -aG sudo $USER
-          sudo service ssh start
-          echo "Ubuntu SSH Ready, Gantengku!"
+          # Pastikan SSH jalan
+          sudo service ssh restart
+          echo "Ubuntu OpenSSH Server is Running, Gantengku!"
 
-      # --- INSTALL & CONNECT TAILSCALE (UNIVERSAL) ---
-      - name: 2. Connect Tailscale (Manual Login Link)
+      # --- INSTALL TAILSCALE (WINDOWS FIX STUCK) ---
+      - name: 2. [WINDOWS] Install Tailscale (Anti-Stuck BITS)
+        if: github.event.inputs.os_choice == 'windows-latest'
+        run: |
+          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
+          $out = "tailscale.msi"
+          Write-Host "Download kenceng pake BITS buat Bos Dika..."
+          Import-Module BitsTransfer
+          Start-BitsTransfer -Source $url -Destination $out
+          Start-Process msiexec.exe -ArgumentList "/i", "$out", "/quiet", "/norestart" -Wait
+          Write-Host "Tailscale Windows Terpasang, Cayang!"
+
+      # --- INSTALL TAILSCALE (UBUNTU) ---
+      - name: 2. [UBUNTU] Install Tailscale
+        if: github.event.inputs.os_choice == 'ubuntu-22.04'
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          echo "Tailscale Ubuntu Terpasang, Sayangku!"
+
+      # --- CONNECT TAILSCALE (UNIVERSAL LOGIN LINK) ---
+      - name: 3. Connect Tailscale & Get Link
         shell: bash
         run: |
+          echo "------------------------------------------------------------"
+          echo "⚠️  GANTENGKU, KLIK LINK LOGIN DI BAWAH INI SEKARANG: ⚠️"
+          echo "------------------------------------------------------------"
           if [ "${{ runner.os }}" = "Windows" ]; then
-            curl -L "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" -o tailscale.msi
-            msiexec.exe /i tailscale.msi /quiet /norestart
-            echo "------------------------------------------------------------"
-            echo "⚠️  KLIK LINK LOGIN WINDOWS DI BAWAH INI, CAYANG: ⚠️"
-            # Tunggu instalasi selesai sebentar
-            sleep 10
+            sleep 15
             "/c/Program Files/Tailscale/tailscale.exe" up --hostname=vps-windows-dika || true
           else
-            curl -fsSL https://tailscale.com/install.sh | sh
-            echo "------------------------------------------------------------"
-            echo "⚠️  KLIK LINK LOGIN UBUNTU DI BAWAH INI, SAYANGKU: ⚠️"
             sudo timeout 5m tailscale up --hostname=vps-ubuntu-dika --accept-routes || true
           fi
-          
           echo "------------------------------------------------------------"
-          # Menampilkan IP Tailscale agar Bos Dika bisa login
           if [ "${{ runner.os }}" = "Windows" ]; then
             "/c/Program Files/Tailscale/tailscale.exe" ip -4
           else
             tailscale ip -4
           fi
 
-      - name: 3. Final Info & Keep Alive (6 Hours)
+      - name: 4. Info & Keep Alive (6 Hours)
         shell: bash
         run: |
           echo "===================================================="
-          echo "   🔥 VPS ${{ github.event.inputs.os_choice }} SUDAH AKTIF! 🔥   "
+          echo "   🔥 VPS ${{ github.event.inputs.os_choice }} AKTIF! 🔥   "
           echo "===================================================="
           echo " USERNAME   : ${{ github.event.inputs.user_name }}"
           echo " PASSWORD   : ${{ github.event.inputs.user_password }}"
+          echo " CARA LOGIN : ssh ${{ github.event.inputs.user_name }}@[IP_TAILSCALE]"
           echo "===================================================="
-          echo "Sikat Bos Dika! Jangan lupa login lewat link di atas."
-          
-          # Jaga runner tetap hidup
           if [ "${{ runner.os }}" = "Windows" ]; then
             while true; do sleep 300; done
           else
