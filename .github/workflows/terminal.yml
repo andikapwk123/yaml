@@ -36,13 +36,15 @@ jobs:
           echo "------------------------------------------------------------"
 
       - name: 3.Lagi Upgrade Dulu Biar Langsung Pake
-        run:
+        run: |
           # UPGRADING
-           
            echo "------------------------------------------------------------"
+           
            sudo apt update
            sudo apt upgrade
+           
            echo "UDAH YA ABANG DIKA"
+           
            echo "------------------------------------------------------------"
 
       - name: 4. Jaga Server Tetap Nyala (6 Jam)
