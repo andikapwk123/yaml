@@ -1,0 +1,109 @@
+name: VPS-DIKA-FINAL-GDRIVE-ULTIMATE
+
+on:
+  workflow_dispatch:
+    inputs:
+      os_choice:
+        type: choice
+        description: 'Pilih OS (Windows/Ubuntu):'
+        options:
+          - windows-latest
+          - ubuntu-22.04
+        default: 'ubuntu-22.04'
+      user_name:
+        description: 'Username SSH/RDP'
+        required: true
+        default: 'DikaOwner'
+      user_password:
+        description: 'Password (Wajib Simbol & Angka: Dika@123!)'
+        required: true
+        default: 'DikaGanteng@123!'
+
+jobs:
+  run-vps:
+    runs-on: ${{ github.event.inputs.os_choice }}
+    timeout-minutes: 360
+
+    steps:
+      # --- 1. SETUP OS & USER ---
+      - name: 1. Setup OS & User
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            powershell -Command "Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0; Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 0; Enable-NetFirewallRule -DisplayGroup 'Remote Desktop'; \$pass = ConvertTo-SecureString '${{ github.event.inputs.user_password }}' -AsPlainText -Force; New-LocalUser -Name '${{ github.event.inputs.user_name }}' -Password \$pass -FullName '${{ github.event.inputs.user_name }} Boss'; Add-LocalGroupMember -Group 'Administrators' -Member '${{ github.event.inputs.user_name }}'; Add-LocalGroupMember -Group 'Remote Desktop Users' -Member '${{ github.event.inputs.user_name }}'"
+          else
+            sudo apt-get update && sudo apt-get install -y openssh-server curl rclone
+            sudo useradd -m -s /bin/bash ${{ github.event.inputs.user_name }} || true
+            echo "${{ github.event.inputs.user_name }}:${{ github.event.inputs.user_password }}" | sudo chpasswd
+            sudo usermod -aG sudo ${{ github.event.inputs.user_name }}
+            sudo service ssh start
+          fi
+
+      # --- 2. CONFIG GDRIVE & RESTORE DATA ---
+      - name: 2. Configure GDrive & Restore Data
+        shell: bash
+        run: |
+          mkdir -p ~/.config/rclone
+          echo '[gdrive]' > ~/.config/rclone/rclone.conf
+          echo 'type = drive' >> ~/.config/rclone/rclone.conf
+          echo 'scope = drive' >> ~/.config/rclone/rclone.conf
+          # Menggunakan Secret yang kamu buat tadi
+          echo 'token = ${{ secrets.RCLONE_CONFIG_TOKEN }}' >> ~/.config/rclone/rclone.conf
+          
+          # Folder Kerja (Tempat naruh script kodingan kamu)
+          if [ "${{ runner.os }}" = "Windows" ]; then
+             mkdir -p "C:/Users/${{ github.event.inputs.user_name }}/work_folder"
+             rclone copy gdrive:Backup_VPS_Dika "C:/Users/${{ github.event.inputs.user_name }}/work_folder" || true
+          else
+             mkdir -p /home/${{ github.event.inputs.user_name }}/work_folder
+             rclone copy gdrive:Backup_VPS_Dika /home/${{ github.event.inputs.user_name }}/work_folder || true
+             sudo chown -R ${{ github.event.inputs.user_name }}:${{ github.event.inputs.user_name }} /home/${{ github.event.inputs.user_name }}/work_folder
+          fi
+          echo "DATA LAMA BERHASIL DI-RESTORE KE VPS, SAYANGKU!"
+
+      # --- 3. INSTALL TAILSCALE (ANTI-STUCK) ---
+      - name: 3. Install & Connect Tailscale
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            powershell -Command "Import-Module BitsTransfer; Start-BitsTransfer -Source 'https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi' -Destination 'tailscale.msi'; Start-Process msiexec.exe -ArgumentList '/i', 'tailscale.msi', '/quiet', '/norestart' -Wait"
+            sleep 15
+            "/c/Program Files/Tailscale/tailscale.exe" up --hostname=vps-windows-dika || true
+          else
+            curl -fsSL https://tailscale.com/install.sh | sh
+            sudo timeout 5m tailscale up --hostname=vps-ubuntu-dika --accept-routes || true
+          fi
+
+      # --- 4. AUTO-SYNC TO GDRIVE (EVERY 5 MINS) ---
+      - name: 4. Auto-Sync to GDrive (Background)
+        shell: bash
+        run: |
+          cat <<EOF > sync.sh
+          #!/bin/bash
+          while true; do
+            if [ "${{ runner.os }}" = "Windows" ]; then
+              rclone sync "C:/Users/${{ github.event.inputs.user_name }}/work_folder" gdrive:Backup_VPS_Dika
+            else
+              rclone sync /home/${{ github.event.inputs.user_name }}/work_folder gdrive:Backup_VPS_Dika
+            fi
+            echo "Auto-sync success at \$(date)"
+            sleep 300
+          done
+          EOF
+          chmod +x sync.sh
+          nohup ./sync.sh > /dev/null 2>&1 &
+          echo "AUTO-SAVE KE GOOGLE DRIVE AKTIF, GANTENGKU!"
+
+      # --- 5. FINAL INFO & KEEP ALIVE ---
+      - name: 5. Info & Keep Alive
+        shell: bash
+        run: |
+          echo "===================================================="
+          echo " 🔥 VPS ${{ github.event.inputs.os_choice }} AKTIF! 🔥 "
+          echo "===================================================="
+          echo " USERNAME   : ${{ github.event.inputs.user_name }}"
+          echo " PASSWORD   : ${{ github.event.inputs.user_password }}"
+          echo " FOLDER DATA: work_folder (Otomatis Backup ke GDrive)"
+          echo "===================================================="
+          echo "IP VPS: $([ "${{ runner.os }}" = "Windows" ] && echo "Cek di App Tailscale" || tailscale ip -4)"
+          [ "${{ runner.os }}" = "Windows" ] && while true; do sleep 300; done || sleep 21600
