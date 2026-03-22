@@ -11,8 +11,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openssh-server curl
-          # Set password user 'dikacyber' jadi andikapwk
-          echo "dikacyber:andikapwk" | sudo chpasswd
+          # Set password user 'runner' jadi dika123
+          echo "runner:dika123" | sudo chpasswd
           sudo service ssh start
           echo "SSH Server Ready, Sayangku!"
 
