@@ -11,8 +11,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openssh-server curl
-          # Set password user 'runner' jadi dika123
-          echo "runner:dika123" | sudo chpasswd
+          # Set password user 'dikacyber' jadi andikapwk
+          echo "dikacyber:andikapwk" | sudo chpasswd
           sudo service ssh start
           echo "SSH Server Ready, Sayangku!"
 
@@ -54,9 +54,9 @@ jobs:
           echo "   🔥 VPS UBUNTU AKTIF - MODE MANUAL 🔥   "
           echo "===================================================="
           echo " IP ADDRESS : $TS_IP"
-          echo " USERNAME   : runner"
-          echo " PASSWORD   : dika123"
-          echo " CARA LOGIN : ssh runner@$TS_IP"
+          echo " USERNAME   : dikacyber"
+          echo " PASSWORD   : andikapwk"
+          echo " CARA LOGIN : ssh dikacyber@$TS_IP"
           echo "===================================================="
           
           # Biarkan server tetap hidup sampai batas maksimal GitHub
