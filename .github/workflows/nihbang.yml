@@ -1,4 +1,4 @@
-name: VPS_LU_NIH
+name: VPS-NYA_BANG_DIKA
 
 on:
   workflow_dispatch:
@@ -110,13 +110,13 @@ jobs:
           fi
 
       # ===============================
-      # 4. AUTO SYNC GDRIVE
+      # 4. AUTO SYNC GDRIVE (FIXED)
       # ===============================
       - name: 4. Auto Sync (Ubuntu)
         if: github.event.inputs.os_choice == 'ubuntu-22.04'
         shell: bash
         run: |
-          cat <<EOF > /home/${{ github.event.inputs.user_name }}/sync.sh
+          sudo tee /home/${{ github.event.inputs.user_name }}/sync.sh > /dev/null <<EOF
           #!/bin/bash
           while true; do
             rclone sync /home/${{ github.event.inputs.user_name }}/work_folder gdrive:Backup_VPS_Dika
@@ -124,8 +124,8 @@ jobs:
           done
           EOF
 
-          chmod +x /home/${{ github.event.inputs.user_name }}/sync.sh
-          nohup /home/${{ github.event.inputs.user_name }}/sync.sh > /dev/null 2>&1 &
+          sudo chmod +x /home/${{ github.event.inputs.user_name }}/sync.sh
+          sudo nohup /home/${{ github.event.inputs.user_name }}/sync.sh > /dev/null 2>&1 &
 
       # ===============================
       # 5. INFO + KEEP ALIVE
